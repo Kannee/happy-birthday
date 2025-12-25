@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>生日挑战：接住我的心</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #2c3e50;
+            --screen-bg: #000;
+            --primary: #e74c3c;
+            --text: #ecf0f1;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Press Start 2P', cursive; /* 复古像素字体 */
+            overflow: hidden;
+            color: var(--text);
+            user-select: none;
+        }
+
+        /* 游戏机外壳 */
+        .arcade-cabinet {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            height: 80vh;
+            background: #34495e;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 游戏屏幕 */
+        .screen-container {
+            background: #000;
+            border: 10px solid #2c3e50;
+            border-radius: 10px;
+            flex-grow: 1;
+            position: relative;
+            overflow: hidden;
+            cursor: none; /* 隐藏鼠标，使用游戏内光标 */
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI 覆盖层 */
+        .ui-layer {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* 开始/结束 覆盖层 */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 20;
+            transition: opacity 0.3s;
+        }
+
+        .overlay h1 {
+            color: #f1c40f;
+            font-size: 24px;
+            margin-bottom: 20px;
+            line-height: 1.5;
+            text-shadow: 4px 4px 0 #e67e22;
+        }
+
+        .overlay p {
+            font-size: 10px;
+            line-height: 1.6;
+            color: #bdc3c7;
+            margin-bottom: 30px;
+            padding: 0 20px;
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 12px;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #c0392b;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #c0392b;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* 胜利后的彩蛋动画 */
+        .win-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            width: 80%;
+            z-index: 30;
+            display: none;
+        }
+        
+        .win-message h2 {
+            font-size: 20px;
+            color: #ff69b4;
+            margin-bottom: 20px;
+            animation: pulse 1s infinite;
+        }
+
+        .win-message img {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: 5px solid #fff;
+            margin-bottom: 20px;
+            box-shadow: 0 0 20px #ff69b4;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="arcade-cabinet">
+        <!-- 游戏 UI -->
+        <div class="ui-layer">
+            <div>SCORE: <span id="score">0</span> / 10</div>
+            <div>LIVES: <span id="lives">1</span></div>
+        </div>
+
+        <!-- 游戏画布 -->
+        <div class="screen-container" id="game-container">
+            <canvas id="gameCanvas"></canvas>
+            
+            <!-- 开始界面 -->
+            <div class="overlay" id="start-screen">
+                <h1>BIRTHDAY<br>CHALLENGE</h1>
+                <p>接住爱心，避开炸弹！<br>集齐 10 颗爱心解锁你的生日礼物。</p>
+                <button class="btn" id="start-btn">START GAME</button>
+            </div>
+
+            <!-- 游戏结束/胜利界面 -->
+            <div class="overlay hidden" id="end-screen">
+                <h1 id="end-title">GAME OVER</h1>
+                <p id="end-msg">你到底爱不爱我！</p>
+                <button class="btn" id="restart-btn">RETRY</button>
+            </div>
+
+            <!-- 胜利后的最终惊喜 -->
+            <div class="win-message" id="win-screen">
+                <img src="https://cdn4.winhlb.com/2025/12/25/694d595fd3f02.jpg" alt="Her Photo" id="win-photo">
+                <h2>HAPPY BIRTHDAY!</h2>
+                <p style="color:white; font-size:20px; line-height:2;">
+                    你通关了！<br>
+                    这意味着你已经抓住了我的心。<br>
+                    亲爱的葡老师，生日快乐！
+                </p>
+                <button class="btn" style="margin-top:20px; background:#f1c40f; box-shadow:0 6px 0 #f39c12;" onclick="location.reload()">PLAY AGAIN</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('game-container');
+    
+    // UI Elements
+    const scoreEl = document.getElementById('score');
+    const livesEl = document.getElementById('lives');
+    const startScreen = document.getElementById('start-screen');
+    const endScreen = document.getElementById('end-screen');
+    const endTitle = document.getElementById('end-title');
+    const endMsg = document.getElementById('end-msg');
+    const winScreen = document.getElementById('win-screen');
+
+    // Game State
+    let gameRunning = false;
+    let score = 0;
+    let lives = 1;
+    let items = [];
+    let animationId;
+    let frameCount = 0;
+    let difficulty = 5; // 难度系数
+
+    // Player
+    const player = {
+        x: 0,
+        y: 0,
+        width: 60,
+        height: 20,
+        color: '#ff69b4',
+        speed: 0
+    };
+
+    // Resize Canvas
+    function resize() {
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+        player.y = canvas.height - 40;
+        player.x = (canvas.width - player.width) / 2;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Input Handling
+    let targetX = player.x;
+    
+    function movePlayer(clientX) {
+        const rect = canvas.getBoundingClientRect();
+        let x = clientX - rect.left - player.width / 2;
+        // Boundary Check
+        if (x < 0) x = 0;
+        if (x > canvas.width - player.width) x = canvas.width - player.width;
+        targetX = x;
+    }
+
+    container.addEventListener('mousemove', (e) => {
+        if(gameRunning) movePlayer(e.clientX);
+    });
+    
+    container.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if(gameRunning) movePlayer(e.touches[0].clientX);
+    }, {passive: false});
+
+    // Item Class
+    class Item {
+        constructor() {
+            this.size = 30;
+            this.x = Math.random() * (canvas.width - this.size);
+            this.y = -50;
+            // 30% chance to be a bomb, 70% heart
+            this.type = Math.random() > 0.3 ? 'heart' : 'bomb'; 
+            this.speed = (Math.random() * 2 + 2) * difficulty;
+        }
+
+        update() {
+            this.y += this.speed;
+        }
+
+        draw() {
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            if (this.type === 'heart') {
+                ctx.fillStyle = '#e74c3c';
+                ctx.fillText('❤️', this.x + this.size/2, this.y + this.size/2);
+            } else {
+                ctx.fillStyle = '#000';
+                ctx.fillText('💣', this.x + this.size/2, this.y + this.size/2);
+            }
+        }
+    }
+
+    // Game Loop
+    function loop() {
+        if (!gameRunning) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Smooth Player Movement
+        player.x += (targetX - player.x) * 0.2;
+
+        // Draw Player
+        ctx.fillStyle = player.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = player.color;
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+        
+        // Draw "Paddle" detail
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.fillRect(player.x, player.y, player.width, 5);
+        ctx.shadowBlur = 0;
+
+        // Spawn Items
+        frameCount++;
+        // Spawn rate increases slightly with score
+        let spawnRate = 60 - (score * 2); 
+        if (spawnRate < 20) spawnRate = 20;
+        
+        if (frameCount % spawnRate === 0) {
+            items.push(new Item());
+        }
+
+        // Update Items
+        for (let i = items.length - 1; i >= 0; i--) {
+            let item = items[i];
+            item.update();
+            item.draw();
+
+            // Collision Detection
+            if (
+                item.x < player.x + player.width &&
+                item.x + item.size > player.x &&
+                item.y < player.y + player.height &&
+                item.y + item.size > player.y
+            ) {
+                // Hit!
+                items.splice(i, 1);
+                handleCollision(item.type);
+                continue;
+            }
+
+            // Missed (Off screen)
+            if (item.y > canvas.height) {
+                items.splice(i, 1);
+            }
+        }
+
+        animationId = requestAnimationFrame(loop);
+    }
+
+    function handleCollision(type) {
+        if (type === 'heart') {
+            score++;
+            scoreEl.textContent = score;
+            // Visual feedback
+            player.color = '#ff69b4';
+            
+            // Win Condition
+            if (score >= 10) {
+                gameOver(true);
+            }
+        } else {
+            lives--;
+            livesEl.textContent = lives;
+            // Visual feedback for damage
+            player.color = '#555';
+            canvas.style.transform = 'translate(5px, 5px)';
+            setTimeout(() => canvas.style.transform = 'translate(0, 0)', 100);
+
+            if (lives <= 0) {
+                gameOver(false);
+            }
+        }
+    }
+
+    function startGame() {
+        gameRunning = true;
+        score = 0;
+        lives = 1;
+        items = [];
+        frameCount = 0;
+        scoreEl.textContent = score;
+        livesEl.textContent = lives;
+        startScreen.classList.add('hidden');
+        endScreen.classList.add('hidden');
+        winScreen.style.display = 'none';
+        loop();
+    }
+
+    function gameOver(win) {
+        gameRunning = false;
+        cancelAnimationFrame(animationId);
+        
+        if (win) {
+            winScreen.style.display = 'block';
+        } else {
+            endTitle.textContent = "GAME OVER";
+            endTitle.style.color = "#e74c3c";
+            endMsg.textContent = `请再爱我一次！`;
+            endScreen.classList.remove('hidden');
+        }
+    }
+
+    // Buttons
+    document.getElementById('start-btn').addEventListener('click', startGame);
+    document.getElementById('restart-btn').addEventListener('click', startGame);
+
+</script>
+</body>
+</html>
